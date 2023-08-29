@@ -26,14 +26,13 @@ import static l1j.server.server.encryptions.Opcodes.C_OPCODE_ATTR;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_BANCLAN;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_BANPARTY;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_BOARD;
-import static l1j.server.server.encryptions.Opcodes.C_OPCODE_BOARDBACK;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_BOARDDELETE;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_BOARDREAD;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_BOARDWRITE;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_BOOKMARK;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_BOOKMARKDELETE;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_BUDDYLIST;
-import static l1j.server.server.encryptions.Opcodes.C_OPCODE_CAHTPARTY;
+import static l1j.server.server.encryptions.Opcodes.C_OPCODE_CHATPARTY;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_CALL;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_CHANGECHAR;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_CHANGEHEADING;
@@ -68,7 +67,7 @@ import static l1j.server.server.encryptions.Opcodes.C_OPCODE_GIVEITEM;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_HIRESOLDIER;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_JOINCLAN;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_KEEPALIVE;
-import static l1j.server.server.encryptions.Opcodes.C_OPCODE_LEAVECLANE;
+import static l1j.server.server.encryptions.Opcodes.C_OPCODE_LEAVECLAN;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_LEAVEPARTY;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_LOGINPACKET;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_LOGINTOSERVER;
@@ -91,6 +90,7 @@ import static l1j.server.server.encryptions.Opcodes.C_OPCODE_RESULT;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_RETURNTOLOGIN;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_SELECTLIST;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_SELECTTARGET;
+import static l1j.server.server.encryptions.Opcodes.C_OPCODE_SENDLOCATION;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_SHIP;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_SHOP;
 import static l1j.server.server.encryptions.Opcodes.C_OPCODE_SKILLBUY;
@@ -121,7 +121,6 @@ import l1j.server.server.clientpackets.C_AuthLogin;
 import l1j.server.server.clientpackets.C_BanClan;
 import l1j.server.server.clientpackets.C_BanParty;
 import l1j.server.server.clientpackets.C_Board;
-import l1j.server.server.clientpackets.C_BoardBack;
 import l1j.server.server.clientpackets.C_BoardDelete;
 import l1j.server.server.clientpackets.C_BoardRead;
 import l1j.server.server.clientpackets.C_BoardWrite;
@@ -168,7 +167,7 @@ import l1j.server.server.clientpackets.C_LoginToServer;
 import l1j.server.server.clientpackets.C_LoginToServerOK;
 import l1j.server.server.clientpackets.C_Mail;
 import l1j.server.server.clientpackets.C_MoveChar;
-import l1j.server.server.clientpackets.C_NPCAction;
+import l1j.server.server.clientpackets.C_NpcAction;
 import l1j.server.server.clientpackets.C_NPCTalk;
 import l1j.server.server.clientpackets.C_NewCharSelect;
 import l1j.server.server.clientpackets.C_Party;
@@ -182,6 +181,7 @@ import l1j.server.server.clientpackets.C_Result;
 import l1j.server.server.clientpackets.C_ReturnToLogin;
 import l1j.server.server.clientpackets.C_SelectList;
 import l1j.server.server.clientpackets.C_SelectTarget;
+import l1j.server.server.clientpackets.C_SendLocation;
 import l1j.server.server.clientpackets.C_ServerVersion;
 import l1j.server.server.clientpackets.C_Ship;
 import l1j.server.server.clientpackets.C_Shop;
@@ -235,6 +235,9 @@ public class PacketHandler {
 		}
 
 		switch (i) {
+		case C_OPCODE_SENDLOCATION:
+			new C_SendLocation(abyte0, _client);
+			break;
 		case C_OPCODE_EXCLUDE:
 			new C_Exclude(abyte0, _client);
 			break;
@@ -257,7 +260,7 @@ public class PacketHandler {
 			new C_ChangeHeading(abyte0, _client);
 			break;
 		case C_OPCODE_NPCACTION:
-			new C_NPCAction(abyte0, _client);
+			new C_NpcAction(abyte0, _client);
 			break;
 		case C_OPCODE_USESKILL:
 			new C_UseSkill(abyte0, _client);
@@ -286,9 +289,10 @@ public class PacketHandler {
 		case C_OPCODE_SKILLBUY:
 			new C_SkillBuy(abyte0, _client);
 			break;
-		case C_OPCODE_BOARDBACK:
+		//TODO -- add this back
+		/*case C_OPCODE_BOARDBACK:
 			new C_BoardBack(abyte0, _client);
-			break;
+			break;*/
 		case C_OPCODE_SHOP:
 			new C_Shop(abyte0, _client);
 			break;
@@ -347,8 +351,9 @@ public class PacketHandler {
 			new C_TaxRate(abyte0, _client);
 			break;
 		case C_OPCODE_CHANGECHAR:
-			new C_NewCharSelect(abyte0, _client);
-			new C_CommonClick(_client);
+			if(new C_NewCharSelect(abyte0, _client).isExpectingClick()) {
+				new C_CommonClick(_client);
+			}
 			break;
 		case C_OPCODE_BUDDYLIST:
 			new C_Buddy(abyte0, _client);
@@ -399,7 +404,7 @@ public class PacketHandler {
 		case C_OPCODE_RESTART:
 			new C_Restart(abyte0, _client);
 			break;
-		case C_OPCODE_LEAVECLANE:
+		case C_OPCODE_LEAVECLAN:
 			new C_LeaveClan(abyte0, _client);
 			break;
 		case C_OPCODE_NPCTALK:
@@ -483,7 +488,7 @@ public class PacketHandler {
 		case C_OPCODE_RANK:
 			new C_Rank(abyte0, _client);
 			break;
-		case C_OPCODE_CAHTPARTY:
+		case C_OPCODE_CHATPARTY:
 			new C_ChatParty(abyte0, _client);
 			break;
 		case C_OPCODE_FIGHT:

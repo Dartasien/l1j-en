@@ -80,7 +80,7 @@ public class S_PacketBox extends ServerBasePacket {
 	public static final int MSG_ELF = 15;
 
 	// C(count) S(name)...: Multiple blocking list
-	public static final int ADD_EXCLUDE2 = 17;
+	public static final int EXCLUDE_LIST = 17;
 
 	// S(name): Add blocking list
 	public static final int ADD_EXCLUDE = 18;
@@ -150,6 +150,16 @@ public class S_PacketBox extends ServerBasePacket {
 
 	// Fishing
 	public static final int FISHING = 55;
+	
+	public static final int BLESS_OF_AIN = 82;
+	public static final int DODGE_RATE_PLUS = 88;
+	public static final int DODGE_RATE_MINUS = 101;
+	public static final int MAP_TIMER = 153;
+	public static final int DISPLAY_MAP_TIME = 159;
+	public static final int UPDATE_OLD_PARTY_MEMBER = 104;
+	public static final int PARTY_UPDATE_MEMBER = 105;
+	public static final int PARTY_SET_MASTER = 106;
+	public static final int PARTY_MEMBERS = 110;
 
 	public S_PacketBox(int subCode) {
 		writeC(Opcodes.S_OPCODE_PACKETBOX);
@@ -214,6 +224,17 @@ public class S_PacketBox extends ServerBasePacket {
 			writeC(0x00);
 			writeC(0x00);
 			writeC(value); // Uncanny Dodge, Mirror Image
+			break;
+		case BLESS_OF_AIN:
+			value /= 10000;
+			writeD(value);
+			break;
+		case DODGE_RATE_PLUS:
+			writeC(value);
+			writeC(0x00);
+			break;
+		case DODGE_RATE_MINUS:
+			writeC(value);
 			break;
 		default:
 			break;
@@ -294,12 +315,41 @@ public class S_PacketBox extends ServerBasePacket {
 	public S_PacketBox(int subCode, Object[] names) {
 		writeC(Opcodes.S_OPCODE_PACKETBOX);
 		writeC(subCode);
+		writeC(0);
+		
 		switch (subCode) {
-		case ADD_EXCLUDE2:
+		case EXCLUDE_LIST:
 			writeC(names.length);
 			for (Object name : names) {
 				writeS(name.toString());
 			}
+			
+			writeH(0);
+			break;
+		default:
+			break;
+		}
+	}
+	
+	// Display remaining time on map
+	public S_PacketBox(int subCode, int time1, int time2, int time3, int time4) {
+		writeC(Opcodes.S_OPCODE_PACKETBOX);
+		writeC(subCode);
+		switch (subCode) {
+		case DISPLAY_MAP_TIME :
+			writeD(4);
+			writeD(1);
+			writeS("$12125"); // Giran Prison
+			writeD(time1);
+			writeD(2);
+			writeS("$6081"); // Ivory Tower
+			writeD(time2);
+			writeD(3);
+			writeS("$12126"); // Lastabad
+			writeD(time3);
+			writeD(4);
+			writeS("$14250"); // Dragon Valley
+			writeD(time4);
 			break;
 		default:
 			break;

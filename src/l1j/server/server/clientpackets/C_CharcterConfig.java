@@ -36,6 +36,7 @@ public class C_CharcterConfig extends ClientBasePacket {
 			L1PcInstance pc = client.getActiveChar();
 			int length = readD() - 3;
 			byte data[] = readByte();
+			
 			int count = CharacterConfigTable.getInstance()
 					.countCharacterConfig(pc.getId());
 			if (count == 0) {

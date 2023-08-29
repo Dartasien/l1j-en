@@ -661,6 +661,7 @@ public class L1ItemInstance extends L1Object implements Comparable<L1ItemInstanc
 				}
 				os.writeC(ac);
 				os.writeC(template.getMaterial());
+				os.writeC(-1); //TODO -- item grades?
 				// US clients aren't expecting this so it messes up the
 				// displayed weight for armor.
 				// os.writeC(template.getGrade());
@@ -868,6 +869,16 @@ public class L1ItemInstance extends L1Object implements Comparable<L1ItemInstanc
 			_log.error("",e);
 		}
 		return returnvalue;
+	}
+	
+	private int _ringId;
+
+	public int getRingID() {
+		return _ringId;
+	}
+
+	public void setRingID(int ringId) {
+		_ringId = ringId;
 	}
 
 	class EnchantTimer implements Runnable {
@@ -1164,5 +1175,26 @@ public class L1ItemInstance extends L1Object implements Comparable<L1ItemInstanc
 	public int compareTo(L1ItemInstance other) {
 		return _item.getName().compareTo(other.getItem().getName());
 	}
+	
+	public int getStatusForPacket() {
+		// 0: Blessed
+		// 1: Normal 
+		// 2: Cursed 
+		// 3: Unidentified
+		// 128: Blessed & Sealed 
+		// 129: & Sealing 
+		// 130: Cursed & Sealed
+		//131: Unidentified & Sealed
+		
+		int status = getBless();
 
+		if (!isIdentified()) {
+			status = 3;
+		}
+		if (false) { // --TODO -- fixisSealed()) {
+			status += 128;
+		}
+		
+		return status;
+	}
 }

@@ -42,6 +42,7 @@ import l1j.server.server.model.Instance.L1PetInstance;
 import l1j.server.server.model.Instance.L1SummonInstance;
 import l1j.server.server.serverpackets.S_PetPack;
 import l1j.server.server.serverpackets.S_ServerMessage;
+import l1j.server.server.serverpackets.S_SkillSound;
 import l1j.server.server.templates.L1Pet;
 
 public class CalcExp {
@@ -554,6 +555,7 @@ public class CalcExp {
 		int add_exp = (int) (exp * exppenalty * Config.RATE_XP * foodBonus * diPenalty);
 
 		pc.addExp(add_exp);
+		pc.addMonsterKill(1); 
 	}
 
 	private static void AddExpPet(L1PetInstance pet, int exp) {
@@ -579,6 +581,7 @@ public class CalcExp {
 		pc.sendPackets(new S_PetPack(pet, pc));
 
 		if (gap != 0) { // After you write the next level DB
+			pc.sendAndBroadcast(new S_SkillSound(pet.getId(), 6353));
 			L1Pet petTemplate = PetTable.getInstance()
 					.getTemplate(petItemObjId);
 			if (petTemplate == null) { // PetTable no

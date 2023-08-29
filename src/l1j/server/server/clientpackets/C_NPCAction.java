@@ -121,12 +121,12 @@ import l1j.server.server.templates.L1Npc;
 import l1j.server.server.templates.L1Skill;
 import l1j.server.server.templates.L1Town;
 
-public class C_NPCAction extends ClientBasePacket {
+public class C_NpcAction extends ClientBasePacket {
 
 	private static final String C_NPC_ACTION = "[C] C_NPCAction";
-	private static Logger _log = LoggerFactory.getLogger(C_NPCAction.class.getName());
+	private static Logger _log = LoggerFactory.getLogger(C_NpcAction.class.getName());
 
-	public C_NPCAction(byte abyte0[], Client client) throws Exception {
+	public C_NpcAction(byte abyte0[], Client client) throws Exception {
 		super(abyte0);
 
 		int objid = readD();
@@ -163,11 +163,20 @@ public class C_NPCAction extends ClientBasePacket {
 		L1PcInstance target;
 		L1Object obj = L1World.getInstance().findObject(objid);
 		if (obj != null) {
-			if (obj instanceof L1NpcInstance) {
+			if (obj instanceof L1PetInstance) {
+				L1PetInstance pet = (L1PetInstance) obj;
+				pet.onFinalAction(pc, s);
+			} else if (obj instanceof L1SummonInstance) {
+				L1SummonInstance summon = (L1SummonInstance) obj;
+				summon.onFinalAction(pc, s);
+			} else if (obj instanceof L1NpcInstance) {
 				L1NpcInstance npc = (L1NpcInstance) obj;
 				int difflocx = Math.abs(pc.getX() - npc.getX());
 				int difflocy = Math.abs(pc.getY() - npc.getY());
-				if (difflocx > 3 || difflocy > 3) {
+				
+				// TODO -- some NPCs work at 12, others only work at 3.. need to figure how to do this cleanly
+				// setting to 12 for now and let the client limit
+				if (difflocx > 12 || difflocy > 12) {
 					return;
 				}
 				npc.onFinalAction(pc, s);
@@ -300,7 +309,7 @@ public class C_NPCAction extends ClientBasePacket {
 				if (rank != L1Clan.CLAN_RANK_PUBLIC
 						&& rank != L1Clan.CLAN_RANK_GUARDIAN
 						&& rank != L1Clan.CLAN_RANK_PRINCE) {
-					pc.sendPackets(new S_SystemMessage("Apprentices cannot use the Blood Pledge storehouse."));
+					pc.sendPackets(new S_SystemMessage("Members on probation cannot use the Blood Pledge storehouse."));
 					return;
 				}
 				if (rank != L1Clan.CLAN_RANK_PRINCE
@@ -491,7 +500,7 @@ public class C_NPCAction extends ClientBasePacket {
 					pet.save(); // fix for pet xp. do not remove
 					// Unequip equipped items
 					pet.collect(true);
-					pc.getPetList().remove(pet.getId());
+					pc.removePet(pet);
 					pet.deleteMe();
 				}
 			}
@@ -891,50 +900,50 @@ public class C_NPCAction extends ClientBasePacket {
 					// it edo, it staff, it spear, it axe, it claw, it bow /*
 					/*
 					 * final int[] item_ids = { 20082, 20126, 20173, 20212,
-					 * 20282, 73, 105, 120, 147, 156, 174, 40373}; final int[]
+					 * 20282, 73, 105, 120, 147, 156, 174}; final int[]
 					 * item_amounts = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 					 */
 					int[] item_ids = {};
 					int[] item_amounts = {};
 					if (pc.isWizard()) {
 						int[] i = { 20082, 20126, 20173, 20212, 20282, 120,
-								40373, 40029, 40085 };
+								40029, 40085 };
 						int[] j = { 1, 1, 1, 1, 1, 1, 1, 20, 10 };
 						item_ids = i;
 						item_amounts = j;
 					} else if (pc.isDarkelf()) {
 						int[] i = { 20082, 20126, 20173, 20212, 20282, 73, 156,
-								174, 40373, 40029, 40085 };
+								174, 40029, 40085 };
 						int[] j = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 20, 10 };
 						item_ids = i;
 						item_amounts = j;
 					} else if (pc.isCrown()) {
 						int[] i = { 20082, 20126, 20173, 20212, 20282, 147,
-								40373, 40029, 40085 };
+								40029, 40085 };
 						int[] j = { 1, 1, 1, 1, 1, 1, 1, 20, 10 };
 						item_ids = i;
 						item_amounts = j;
 					} else if (pc.isKnight()) {
 						int[] i = { 20082, 20126, 20173, 20212, 20282, 105,
-								147, 174, 40373, 40029, 40085 };
+								147, 174, 40029, 40085 };
 						int[] j = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 20, 10 };
 						item_ids = i;
 						item_amounts = j;
 					} else if (pc.isDragonKnight()) {
 						int[] i = { 20082, 20126, 20173, 20212, 20282, 147,
-								40373, 40029, 40085 };
+								40029, 40085 };
 						int[] j = { 1, 1, 1, 1, 1, 1, 1, 20, 10 };
 						item_ids = i;
 						item_amounts = j;
 					} else if (pc.isIllusionist()) {
 						int[] i = { 20082, 20126, 20173, 20212, 20282, 147,
-								40373, 40029, 40085 };
+								40029, 40085 };
 						int[] j = { 1, 1, 1, 1, 1, 1, 1, 20, 10 };
 						item_ids = i;
 						item_amounts = j;
 					} else { // elf
 						int[] i = { 20082, 20126, 20173, 20212, 20282, 174,
-								40373, 40029, 40085 };
+								40029, 40085 };
 						int[] j = { 1, 1, 1, 1, 1, 1, 1, 20, 10 };
 						item_ids = i;
 						item_amounts = j;

@@ -11,7 +11,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import l1j.server.L1DatabaseFactory;
-import l1j.server.server.GeneralThreadPool;
 import l1j.server.server.datatables.CharacterTable;
 import l1j.server.server.model.L1Teleport;
 import l1j.server.server.model.L1World;
@@ -193,7 +192,6 @@ public class JailController implements Runnable {
 			
 			checkTime = System.currentTimeMillis();
 			_log.trace("Unjail controller finished running.");
-			GeneralThreadPool.getInstance().schedule(this, 60000);
 		} catch(Exception ex) {
 			_log.warn("Unjail controller crashed! No users will be auto-unjailed!");
 		}

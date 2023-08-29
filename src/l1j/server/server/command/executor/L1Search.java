@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import l1j.server.L1DatabaseFactory;
+import l1j.server.server.GeneralThreadPool;
 import l1j.server.server.model.Instance.L1PcInstance;
 import l1j.server.server.serverpackets.S_SystemMessage;
 import l1j.server.server.utils.SQLUtil;
@@ -67,11 +68,26 @@ public class L1Search implements L1CommandExecutor {
 				}
 				itCount++;
 			}
-			if (simpleS == false) {
-				find_object(pc, type, name);
-			} else {
-				find_object(pc, name);
-			}
+			
+			// don't allow a blank
+			if(itCount == 0)
+				return;
+			
+			// set the db lookup to run on another thread
+			final boolean passableSimpleS = simpleS;
+			final String passableType = type;
+			final String passableName = name;
+			
+			GeneralThreadPool.getInstance().execute(new Runnable() {
+				@Override
+	            public void run() {
+					if (passableSimpleS == false) {
+						find_object(pc, passableType, passableName);
+					} else {
+						find_object(pc, passableName);
+					}
+				}
+			});
 		} catch (Exception e) {
 			pc.sendPackets(new S_SystemMessage(
 					".find (type[armor,misci,weapon,npc,map]) searchText"));
@@ -216,7 +232,7 @@ public class L1Search implements L1CommandExecutor {
 			statement.close();
 
 			statement = con
-					.prepareStatement("select polyid,name from polymorphs where name Like concat('%',?,'%')");
+					.prepareStatement("select gfx_id,name from polymorphs where name Like concat('%',?,'%')");
 			statement.setString(1, name);
 			int polyCount = 0;
 			rs = statement.executeQuery();

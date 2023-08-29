@@ -29,14 +29,19 @@ import static l1j.server.server.model.skill.L1SkillId.STATUS_HASTE;
 import static l1j.server.server.model.skill.L1SkillId.STATUS_RIBRAVE;
 import static l1j.server.server.model.skill.L1SkillId.STRIKER_GALE;
 import static l1j.server.server.model.skill.L1SkillId.WIND_WALK;
+import static l1j.server.server.serverpackets.S_EquipmentWindow.*;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +57,7 @@ import l1j.server.server.datatables.AccessLevelTable;
 import l1j.server.server.datatables.CharacterTable;
 import l1j.server.server.datatables.ExpTable;
 import l1j.server.server.datatables.ItemTable;
+import l1j.server.server.datatables.MapTimerTable;
 import l1j.server.server.datatables.NpcTable;
 import l1j.server.server.datatables.PetTable;
 import l1j.server.server.encryptions.Opcodes;
@@ -72,6 +78,7 @@ import l1j.server.server.model.L1Karma;
 import l1j.server.server.model.L1Magic;
 import l1j.server.server.model.L1Object;
 import l1j.server.server.model.L1Party;
+import l1j.server.server.model.L1PartyRefresh;
 import l1j.server.server.model.L1PcDeleteTimer;
 import l1j.server.server.model.L1PcInventory;
 import l1j.server.server.model.L1PinkName;
@@ -87,6 +94,7 @@ import l1j.server.server.model.ZoneType;
 import l1j.server.server.model.classes.L1ClassFeature;
 import l1j.server.server.model.classes.L1ClassId;
 import l1j.server.server.model.gametime.L1GameTimeCarrier;
+import l1j.server.server.model.map.L1MapLimiter;
 import l1j.server.server.model.monitor.L1PcAutoUpdate;
 import l1j.server.server.model.monitor.L1PcExpMonitor;
 import l1j.server.server.model.monitor.L1PcGhostMonitor;
@@ -95,12 +103,14 @@ import l1j.server.server.model.monitor.L1PcInvisDelay;
 import l1j.server.server.model.skill.L1SkillId;
 import l1j.server.server.model.skill.L1SkillUse;
 import l1j.server.server.network.Client;
+import l1j.server.server.network.DelayedPacket;
 import l1j.server.server.serverpackets.S_BlueMessage;
 import l1j.server.server.serverpackets.S_CastleMaster;
 import l1j.server.server.serverpackets.S_ChangeShape;
 import l1j.server.server.serverpackets.S_Disconnect;
 import l1j.server.server.serverpackets.S_DoActionGFX;
 import l1j.server.server.serverpackets.S_DoActionShop;
+import l1j.server.server.serverpackets.S_EquipmentWindow;
 import l1j.server.server.serverpackets.S_Exp;
 import l1j.server.server.serverpackets.S_HPMeter;
 import l1j.server.server.serverpackets.S_HPUpdate;
@@ -145,6 +155,12 @@ public class L1PcInstance extends L1Character {
 	private static final long serialVersionUID = 1L;
 	private ScheduledFuture<?> _teleDelayFuture;
 	
+	boolean _rpActive = false;
+	
+	public void disablePartyRefresh() {
+		_rpActive = false;
+	}
+
 	public void teleWithDelay(int delay, int x, int y, short mapid, int head, boolean ignorePets) {
 		
 		if (_teleDelayFuture != null) {
@@ -848,6 +864,16 @@ public class L1PcInstance extends L1Character {
 	private String followingGm = null;
 
 	private int invisDelayCounter = 0;
+	
+	private boolean _excludeInitialized = false;
+	
+	public boolean isExcludeInitialized() {
+		return _excludeInitialized;
+	}
+	
+	public void setExcludeInitialised() {
+		_excludeInitialized = true;
+	}
 
 	private ArrayList<Integer> skillList = new ArrayList<Integer>();
 	private L1NpcInstance spoofMob = null;
@@ -1397,6 +1423,10 @@ public class L1PcInstance extends L1Character {
 	public synchronized int getBonusStats() {
 		return _bonusStats;
 	}
+	
+	public ArrayList<L1BookMark> getBookMarks() {
+		return _bookmarks;
+	}
 
 	public L1BookMark getBookMark(int id) {
 		for (int i = 0; i < _bookmarks.size(); i++) {
@@ -1405,6 +1435,24 @@ public class L1PcInstance extends L1Character {
 				return element;
 			}
 
+		}
+		return null;
+	}
+	
+	public L1BookMark getBookMarkByIndex(int index) {
+		if(index > _bookmarks.size())
+			return null ;
+		
+		return _bookmarks.get(index);
+	}
+	
+	public L1BookMark getBookMarkByCoords(int x, int y, int mapId) {
+		for (int i = 0; i < _bookmarks.size(); i++) {
+			L1BookMark element = _bookmarks.get(i);
+			
+			if (element.getLocX() == x && element.getLocY() == y && element.getMapId() == mapId) {
+				return element;
+			}
 		}
 		return null;
 	}
@@ -2170,6 +2218,62 @@ public class L1PcInstance extends L1Character {
 			attack.commit();
 		}
 	}
+	
+	private static ScheduledFuture<?> _mapLimiterFuture;
+	private static L1MapLimiter _mapLimiter = null;
+	public L1MapLimiter getMapLimiter() {
+		return _mapLimiter;
+	}
+
+	public void setMapLimiter(L1MapLimiter mapLimiter) {
+		_mapLimiter = mapLimiter;
+	}
+
+	public void startMapLimiter() {
+		if (getMapLimiter() != null) {
+			stopMapLimiter();
+		}
+
+		setMapLimiter(L1MapLimiter.get(getMapId()));
+		if (!isGm() && getMapLimiter() != null) {
+			getMapLimiter().execute(this);
+			ScheduledExecutorService schedule = Executors.newSingleThreadScheduledExecutor();
+			_mapLimiterFuture = schedule.scheduleAtFixedRate(getMapLimiter(), 0, 1000, TimeUnit.MILLISECONDS);
+		}
+	}
+
+	public void stopMapLimiter() {
+		if (getMapLimiter() != null) {
+			getMapLimiter().save();
+			setMapLimiter(null);
+			if (_mapLimiterFuture != null) {
+				_mapLimiterFuture.cancel(true);
+				_mapLimiterFuture = null;
+			}
+		}
+	}
+	
+	public int getEnterTime(int areaId) {
+		int time = 0;
+		L1MapLimiter limiter = getMapLimiter();
+		
+		if (limiter != null && limiter.getAreaId() == areaId) {
+			time = limiter.getEnterTime() / 60;
+		} else {
+			limiter = L1MapLimiter.get(areaId);
+			
+			if (limiter != null) {
+				MapTimerTable timer = MapTimerTable.find(getId(), limiter.getAreaId());
+				
+				if (timer != null) {
+					time = timer.getEnterTime() / 60;
+				} else {
+					time = limiter.getEffect().getTime() / 60;
+				}
+			}
+		}
+		return time;
+	}
 
 	public void onChangeExp() {
 		int level = ExpTable.getLevelByExp(getExp());
@@ -2418,11 +2522,75 @@ public class L1PcInstance extends L1Character {
 			setCurrentMp(newMp);
 		}
 	}
+	
+	public void setEquipped(L1PcInstance pc, boolean isEq) {
+		for (L1ItemInstance item : pc.getInventory().getItems()) {
+			if ((item.getItem().getType2() == 2) && (item.isEquipped())) {
+				int items = 0;
+				
+				if ((item.getItem().getType() == 1)) {
+					items = EQUIPMENT_INDEX_HELM;
+				} else if ((item.getItem().getType() == 2)) {
+					items = EQUIPMENT_INDEX_T;
+				} else if ((item.getItem().getType() == 3)) {
+					items = EQUIPMENT_INDEX_ARMOR;
+				} else if ((item.getItem().getType() == 4)) {
+					items = EQUIPMENT_INDEX_CLOAK;
+				} else if ((item.getItem().getType() == 5)) {
+					items = EQUIPMENT_INDEX_GLOVE;
+				} else if ((item.getItem().getType() == 6)) {
+					items = EQUIPMENT_INDEX_BOOTS;
+				} else if ((item.getItem().getType() == 7)) {
+					// sheild
+					items = EQUIPMENT_INDEX_SHIELD;
+				} else if ((item.getItem().getType() == 13)) {
+					// guarder
+					items = EQUIPMENT_INDEX_SHIELD;
+				} else if ((item.getItem().getType() == 9) && item.getRingID() == 18) {
+					items = EQUIPMENT_INDEX_RING1;
+				} else if ((item.getItem().getType() == 9) && item.getRingID() == 19) {
+					items = EQUIPMENT_INDEX_RING2;	
+				} else if ((item.getItem().getType() == 9) && item.getRingID() == 20) {
+					items = EQUIPMENT_INDEX_RING3;
+				} else if ((item.getItem().getType() == 9) && item.getRingID() == 21) {	
+					items = EQUIPMENT_INDEX_RING4;
+				} else if ((item.getItem().getType() == 8)) {
+					items = EQUIPMENT_INDEX_AMULET;
+				} else if ((item.getItem().getType() == 12)) {
+					items = EQUIPMENT_INDEX_EARRING;
+				} else if ((item.getItem().getType() == 10)) {
+					items = EQUIPMENT_INDEX_BELT;	
+				} else if ((item.getItem().getType() == 14)) {
+					items = EQUIPMENT_INDEX_RUNE1;
+				} else if ((item.getItem().getType() == 15)) {
+					items = EQUIPMENT_INDEX_RUNE2;
+				} else if ((item.getItem().getType() == 16)) {
+					items = EQUIPMENT_INDEX_RUNE3;
+				} else if ((item.getItem().getType() == 17)) {
+					items = EQUIPMENT_INDEX_RUNE4;
+				} else if ((item.getItem().getType() == 18)) {
+					items = EQUIPMENT_INDEX_RUNE5;
+				}
+				
+				pc.sendPackets(new S_EquipmentWindow(pc, item.getId(),items,isEq)); 
+			}
+			if ((item.getItem().getType2() == 1) && (item.isEquipped())) {
+				int items = EQUIPMENT_INDEX_WEAPON;
+				pc.sendPackets(new S_EquipmentWindow(pc, item.getId(),items,isEq)); 
+			}
+		}
+	}
+
 
 	public void reduceCurrentHp(double d, L1Character l1character) {
 		getStat().reduceCurrentHp(d, l1character);
 	}
-
+	
+	public void startRefreshParty() {
+		if (!_rpActive) {
+			GeneralThreadPool.getInstance().schedule(new L1PartyRefresh(this), L1PartyRefresh.INTERVAL);
+		}
+	}
 	public void refresh() {
 		resetLevel();
 		resetBaseHitup();
@@ -2601,6 +2769,10 @@ public class L1PcInstance extends L1Character {
 		sendPackets(packet);
 		broadcastPacket(packet);
 	}
+	
+	public void sendAfter(ServerBasePacket serverbasepacket) {
+		GeneralThreadPool.getInstance().schedule(new DelayedPacket(serverbasepacket, this), 1);
+	}
 
 	public void sendPackets(ServerBasePacket serverbasepacket) {
 		if (_out == null) {
@@ -2750,6 +2922,31 @@ public class L1PcInstance extends L1Character {
 	public void setClanRank(int i) {
 		_clanRank = i;
 	}
+	
+	private Timestamp _birthday;
+
+	public Timestamp getBirthday() {
+		return _birthday;
+	}
+
+	public int getSimpleBirthday() {
+		if (_birthday !=null) {
+			SimpleDateFormat SimpleDate = new SimpleDateFormat("yyyyMMdd");
+			int BornTime = Integer.parseInt(SimpleDate.format(_birthday.getTime()));
+			return BornTime;
+		} else {
+			return 0;
+		}
+	}
+
+	public void setBirthday(Timestamp time) {
+		_birthday = time;
+	}
+
+	public void setBirthday(){
+		_birthday = new Timestamp(System.currentTimeMillis());
+	}
+
 
 	public void setClassId(int i) {
 		_classId = i;
@@ -3587,5 +3784,53 @@ public class L1PcInstance extends L1Character {
 
 	private void setReserveGhost(boolean flag) {
 		_isReserveGhost = flag;
+	}
+	
+	private int _blessOfAin;
+
+	public void setBlessOfAin(int i) {
+		_blessOfAin = i;
+	}
+
+	public void calcBlessOfAin(int i) {
+		int calc = _blessOfAin + i;
+		if (calc >= 2000000) {
+			calc = 2000000;
+		}
+		_blessOfAin = calc;
+	}
+
+	public int getBlessOfAin() {
+		return _blessOfAin;
+	}
+	
+	private Timestamp _logoutTime;
+
+	public void setLogoutTime(Timestamp time) {
+		_logoutTime = time;
+	}
+
+	public void setLogoutTime() {
+		_logoutTime = new Timestamp(System.currentTimeMillis());
+	}
+
+	public Timestamp getLogoutTime() {
+		return _logoutTime;
+	}
+	
+	private int _monsterKill = 0; // number of mobs killed
+
+	public int getMonsterKill() {
+		return _monsterKill;
+	}
+
+	public void setMonsterKill(int i) {
+		_monsterKill = i;
+		sendPackets(new S_OwnCharStatus(this));
+	}
+
+	public void addMonsterKill(int i) {
+		_monsterKill += i;
+		sendPackets(new S_OwnCharStatus(this));
 	}
 }

@@ -531,7 +531,7 @@ public class L1SkillUse {
 					L1Object object = L1World.getInstance().findObject(targetId);
 
 					// no skills can be used on an invul gm... unless it is a command!
-					if (!isCommand && object != null && object instanceof L1PcInstance
+					if (!isCommand && type != L1SkillUse.TYPE_LOGIN && object != null && object instanceof L1PcInstance
 							&& ((L1PcInstance) object).isGmInvul()) {
 
 						player.sendPackets(new S_ServerMessage(281));
@@ -972,7 +972,7 @@ public class L1SkillUse {
 	private void sendHappenMessage(L1PcInstance pc) {
 		int msgID = _skill.getSysmsgIdHappen();
 		// Added some fixes for various happen messages
-		if (msgID == 161) { // TODO
+		if (msgID == 161) {
 			if (_skillId == BLESSED_ARMOR || _skillId == ENCHANT_WEAPON) { // happen
 																			// message
 																			// not
@@ -1453,6 +1453,12 @@ public class L1SkillUse {
 						}
 
 						_player.broadcastPacket(new S_SkillSound(targetid, castgfx));
+						
+						//TODO -- find a better way to track which skills need the packet to re-send
+						// and which packet to send
+						if(_skillId == HOLY_WALK) {
+							_player.sendAfter(new S_SkillBrave(_player.getId(), 4, _skillTime));
+						}
 					}
 				}
 

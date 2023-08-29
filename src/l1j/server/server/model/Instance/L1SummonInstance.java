@@ -137,6 +137,14 @@ public class L1SummonInstance extends L1NpcInstance {
 		setMaster(master);
 		setX(master.getX() + ThreadLocalRandom.current().nextInt(5) - 2);
 		setY(master.getY() + ThreadLocalRandom.current().nextInt(5) - 2);
+		
+		// make sure when we pull them out that they're not stuck somewhere they can't get to you
+		// limit to 15 tries
+		for(int x = 0; x < 15 && moveDirection(master.getX(), master.getY()) == -1; x++) {
+			setX(master.getX() + ThreadLocalRandom.current().nextInt(5) - 2);
+			setY(master.getY() + ThreadLocalRandom.current().nextInt(5) - 2);
+		}
+		
 		setMap(master.getMapId());
 		setHeading(5);
 		setLightSize(template.getLightSize());
@@ -192,6 +200,14 @@ public class L1SummonInstance extends L1NpcInstance {
 		setMaster(master);
 		setX(target.getX());
 		setY(target.getY());
+		
+		// make sure when we pull them out that they're not stuck somewhere they can't get to you
+		// limit to 15 tries
+		for(int x = 0; x < 15 && moveDirection(master.getX(), master.getY()) == -1; x++) {
+			setX(master.getX() + ThreadLocalRandom.current().nextInt(5) - 2);
+			setY(master.getY() + ThreadLocalRandom.current().nextInt(5) - 2);
+		}
+		
 		setMap(target.getMapId());
 		setHeading(target.getHeading());
 		setLightSize(target.getLightSize());
@@ -220,6 +236,10 @@ public class L1SummonInstance extends L1NpcInstance {
 
 	@Override
 	public void receiveDamage(L1Character attacker, int damage) {
+		if (attacker instanceof L1PcInstance) {
+			((L1PcInstance) attacker).setLastAggressiveAct();
+		}
+		
 		if (getCurrentHp() > 0) {
 			boolean isMaster = attacker == _master;
 			
@@ -324,7 +344,8 @@ public class L1SummonInstance extends L1NpcInstance {
 		if (!_tamed && !_isReturnToNature) {
 			broadcastPacket(new S_SkillSound(getId(), 169));
 		}
-		_master.getPetList().remove(getId());
+		
+		_master.removePet(this);
 		super.deleteMe();
 
 		if (_summonFuture != null) {
@@ -457,7 +478,7 @@ public class L1SummonInstance extends L1NpcInstance {
 	}
 
 	@Override
-	public void onGetItem(L1ItemInstance item) {
+	public void onGetItem(L1ItemInstance item, int count) {
 		if (getNpcTemplate().get_digestitem() > 0) {
 			setDigestItem(item);
 		}

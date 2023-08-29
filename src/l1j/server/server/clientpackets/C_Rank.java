@@ -28,6 +28,7 @@ import l1j.server.server.model.L1Quest;
 import l1j.server.server.model.L1World;
 import l1j.server.server.model.Instance.L1PcInstance;
 import l1j.server.server.network.Client;
+import l1j.server.server.serverpackets.S_PacketBox;
 import l1j.server.server.serverpackets.S_ServerMessage;
 import l1j.server.server.serverpackets.S_SystemMessage;
 
@@ -41,14 +42,28 @@ public class C_Rank extends ClientBasePacket {
 	public C_Rank(byte abyte0[], Client client) throws Exception {
 		super(abyte0);
 		
-		readC(); //not currently used
+		int data = readC();
 		int rank = readC();
-		String name = readS();
-
-		setRank(client.getActiveChar(), rank, name);
+		
+		L1PcInstance pc = client.getActiveChar();
+		
+		switch(data) {
+			case 1:
+				String pledgeMember = readS();
+				pledgeRank(pc, rank, pledgeMember);
+				break;
+			case 9:
+				pc.sendPackets(new S_PacketBox(S_PacketBox.DISPLAY_MAP_TIME ,
+						pc.getEnterTime(53),   // Giran Prison
+						pc.getEnterTime(78),   // Ivory Tower
+						pc.getEnterTime(451),  // Lastabad
+						pc.getEnterTime(30))); // Dragon Valley
+				break;
+		}
+		
 	}
 	
-	public static void setRank(L1PcInstance royal, int rank, String player) throws Exception  {
+	private static void pledgeRank(L1PcInstance royal, int rank, String player) throws Exception {
 		L1PcInstance targetPc = L1World.getInstance().getPlayer(player);
 
 		if (royal == null) {
@@ -92,19 +107,18 @@ public class C_Rank extends ClientBasePacket {
 					targetPc.save();
 					String rankString = "$772";
 					if (rank == L1Clan.CLAN_RANK_PROBATION) {
-						rankString = "$774";
-					} else if (rank == L1Clan.CLAN_RANK_PUBLIC) {
 						rankString = "$773";
+					} else if (rank == L1Clan.CLAN_RANK_PUBLIC) {
+						rankString = "$774";
 					} else if (rank == L1Clan.CLAN_RANK_GUARDIAN) {
 						rankString = "$772";
 					}
 					
-					targetPc.sendPackets(new S_ServerMessage(784, rankString));
+					targetPc.sendPackets(new S_PacketBox(S_PacketBox.MSG_RANK_CHANGED, rank));
 					royal.sendPackets(new S_SystemMessage(
 							String.format("You have changed %s's rank to:",
 									targetPc.getName())));
-					royal.sendPackets(
-							new S_ServerMessage(Integer.parseInt(rankString.replace("$", ""))));
+					royal.sendPackets(new S_ServerMessage(Integer.parseInt(rankString.replace("$", ""))));
 				} catch (Exception e) {
 					_log.error(e.getLocalizedMessage(), e);
 				}

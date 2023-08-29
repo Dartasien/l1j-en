@@ -7,4 +7,6 @@ l1jen.jar
 *.iws
 .gradle
 .idea
+.metadata
 build
+.settings/org.eclipse.core.resources.prefs
