@@ -49,9 +49,16 @@ public class CastleTable {
 		return _instance;
 	}
 
-	private Calendar timestampToCalendar(Timestamp ts) {
+	private Calendar timestampToCalendar(java.time.LocalDateTime localDateTime) {
+		// 2. get system default zone
+        java.time.ZoneId zoneId = java.time.ZoneId.systemDefault();
+ 
+ 
+        // 3. convert LocalDate to java.util.Date
+        java.util.Date date = java.util.Date.from(localDateTime.atZone(zoneId).toInstant());
+ 
 		Calendar cal = Calendar.getInstance();
-		cal.setTimeInMillis(ts.getTime());
+		cal.setTime(date);
 		return cal;
 	}
 
@@ -66,7 +73,7 @@ public class CastleTable {
 			rs = pstm.executeQuery();
 			while (rs.next()) {
 				L1Castle castle = new L1Castle(rs.getInt(1), rs.getString(2));
-				castle.setWarTime(timestampToCalendar((Timestamp) rs
+				castle.setWarTime(timestampToCalendar((java.time.LocalDateTime) rs
 						.getObject(3)));
 				castle.setTaxRate(rs.getInt(4));
 				castle.setPublicMoney(rs.getInt(5));

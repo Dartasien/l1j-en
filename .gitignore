@@ -10,3 +10,4 @@ l1jen.jar
 .metadata
 build
 .settings/org.eclipse.core.resources.prefs
+*.class
