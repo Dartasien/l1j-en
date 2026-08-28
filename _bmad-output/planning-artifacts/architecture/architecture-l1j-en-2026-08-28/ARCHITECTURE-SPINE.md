@@ -45,11 +45,11 @@ Threading is the paradigm's load-bearing detail: there is **no main game loop**.
 - **Prevents:** feature code writing player state straight to the DB (bypassing save paths) or assuming the DB reflects live state; hot-patching content under a running server and desyncing memory from disk.
 - **Rule:** The in-memory `L1World` model is the authority while the server runs. The DB is a snapshot written only by save paths (logout / scheduled / shutdown) through `datatables/` + `storage/`; no feature code issues player-state SQL, and no runtime code reads the DB expecting live values. Content changes — `db/` SQL, `data/`, `maps/`, `config/` — are applied with the server stopped and take effect on boot.
 
-### AD-3 — The wire protocol is a frozen contract [ADOPTED]
+### AD-3 — Wire protocol: frozen baseline, gated extensions
 
 - **Binds:** `clientpackets/`, `serverpackets/`, `network/`
-- **Prevents:** a feature changing the byte layout or semantics of an existing packet and breaking the fixed client.
-- **Rule:** The 2009 US client is frozen. The byte layout and semantics of every existing packet are immutable. New features may only use opcodes and packet shapes the client already understands; introducing a new packet type or re-encoding an existing one requires a client change and is out of scope for server work.
+- **Prevents:** a feature changing the byte layout or semantics of an existing packet and breaking stock clients; and two features claiming the same new opcode.
+- **Rule:** The byte layout and semantics of every existing packet are immutable — stock and modified clients alike depend on them. The server must keep supporting the unmodified 2009 US client. New features may add new packets/opcodes for modified clients, but stock-client behavior must not change: new server behavior is gated on client version/feature detection (`C_ClientVersion`), and stock clients must never receive packets they cannot parse. New opcodes are allocated in `encryptions/Opcodes.java` from the unused opcode space — one distinct unused value per feature, recorded in the change.
 
 ### AD-4 — Content placement: follow the kind
 
@@ -114,6 +114,8 @@ graph TD
 | Content SQL | One content change = one `db/update_NNN.sql` taking the next free number; optional/variant content in `db/optional/` |
 | Configuration | Runtime-tunable values live in `config/*.properties` read through `Config`; no hardcoded rates, ports, or flags in feature code |
 | Logging | slf4j only, one logger per class; no `System.out` |
+| Verification | Until a test strategy is adopted, review against this spine (AD-1..AD-7 + conventions) is the sole verification gate for new work |
+| Opcodes | New client opcodes are allocated in `encryptions/Opcodes.java` from the unused space, one distinct value per feature (AD-3) |
 | State & cross-cutting | Per-object `synchronized` for shared mutable state (AD-1); DB access only via `datatables/` + `storage/` (AD-2) |
 
 ## Stack
