@@ -170,6 +170,12 @@ public class GameServerThread {
 			_log.info("InGameNews                 = Off");
 		}
 
+		if (Config.USE_ENCHANT_PROCS) {
+			_log.info("EnchantProcs               = On");
+		} else {
+			_log.info("EnchantProcs               = Off");
+		}
+
 		System.gc();
 
 		int maxOnlineUsers = Config.MAX_ONLINE_USERS;

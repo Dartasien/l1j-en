@@ -18,6 +18,8 @@
  */
 package l1j.server.server.model;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 /**
  * A single enchant-proc tier loaded from the {@code enchant_proc} table: the
  * enchant level range it covers, its trigger probability, the damage it deals
@@ -80,5 +82,20 @@ public class L1EnchantProcTier {
 
 	public int getEffectId() {
 		return _effectId;
+	}
+
+	/**
+	 * Rolls bonus damage for a triggered proc: a uniform value in
+	 * {@code [minDamage, maxDamage]}. When {@code minDamage == maxDamage} the
+	 * constant is returned. The span is computed in {@code long} so extreme
+	 * content values cannot overflow the random bound; an inverted range
+	 * (min > max, rejected by the loader) degrades to {@code minDamage}.
+	 */
+	public int rollDamage() {
+		long span = (long) _maxDamage - _minDamage;
+		if (span < 0) {
+			span = 0;
+		}
+		return _minDamage + (int) ThreadLocalRandom.current().nextLong(span + 1);
 	}
 }

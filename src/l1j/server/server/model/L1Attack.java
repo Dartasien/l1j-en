@@ -88,6 +88,7 @@ import l1j.server.Config;
 import l1j.server.server.ActionCodes;
 import l1j.server.server.controllers.BossEventController;
 import l1j.server.server.controllers.WarTimeController;
+import l1j.server.server.datatables.EnchantProcTable;
 import l1j.server.server.model.Instance.L1DollInstance;
 import l1j.server.server.model.Instance.L1ItemInstance;
 import l1j.server.server.model.Instance.L1NpcInstance;
@@ -828,6 +829,20 @@ public class L1Attack {
 		if (isKiringku) {
 			damage = L1WeaponSkill.getKiringkuDamage(_pc, _target);
 			damage += calcAttrEnchantDmg();
+		}
+
+		// Enchant-tier proc (Epic 1). Must stay AFTER the kiringku block:
+		// kiringku replaces `damage`, so a proc added earlier would be
+		// discarded for kiringku/magic weapons.
+		if (Config.USE_ENCHANT_PROCS && _weaponEnchant > 0) {
+			L1EnchantProcTier enchantProcTier = EnchantProcTable.getInstance()
+					.getTier(_weaponEnchant);
+			if (enchantProcTier != null
+					&& "physical".equals(enchantProcTier.getDamageType())
+					&& enchantProcTier.getProbability() >= ThreadLocalRandom
+							.current().nextInt(100) + 1) {
+				damage += enchantProcTier.rollDamage();
+			}
 		}
 
 		if (_weaponType2 == WeaponType.Chainsword) {

@@ -318,6 +318,7 @@ public final class Config {
 	public static double RANDOMIZED_BOSS_SPAWN_FACTOR;
 	public static boolean ROYAL_LEVEL_DAMAGE;
 	public static boolean USE_INT_PROCS;
+	public static boolean USE_ENCHANT_PROCS;
 	public static boolean AUTO_STONE;
 
 	public static int MAX_PT;
@@ -953,6 +954,8 @@ public final class Config {
 					"RoyalLevelDamage", "False"));
 			USE_INT_PROCS = Boolean.parseBoolean(altSettings.getProperty(
 					"UseIntProcs", "False"));
+			USE_ENCHANT_PROCS = Boolean.parseBoolean(altSettings.getProperty(
+					"UseEnchantProcs", "False"));
 			AUTO_STONE = Boolean.parseBoolean(altSettings.getProperty(
 					"UseAutoStone", "False"));
 			USE_PINE_IN_SAFETY = Boolean.parseBoolean(altSettings.getProperty("UsePineInSafety", "True"));
