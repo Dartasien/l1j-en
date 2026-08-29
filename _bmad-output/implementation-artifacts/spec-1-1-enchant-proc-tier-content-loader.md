@@ -2,7 +2,7 @@
 title: 'Story 1.1: Enchant Proc Tier Content & Loader'
 type: 'feature'
 created: '2026-08-28'
-status: 'in-review'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: 3640591a7178ae572df8ae9c571fce7b62f0695b
 context:
@@ -97,3 +97,41 @@ Lookup is a linear scan over ≤ a handful of tiers — no index structure neede
 - Live boot test via `docker compose` (fresh MariaDB 12.0.2 initialized from `db/`): log shows `EnchantProcTable ... List of enchant proc tiers: 7 Loaded` followed by `Database tables loaded successfully!`
 - Malformed-row test: inserted rows with min>max and unknown damage type `'plasma'`, rebooted — both skipped with slf4j warnings naming the tier, 7 valid tiers loaded, boot completed
 - Diff audit: only `GameServerThread.java` modified (import + one boot line); no attack-path, packet, or `Config` changes
+
+**Verification results after review patches (08-29-2026):**
+- `ant compile` in `eclipse-temurin:11-jdk` + Ant container: BUILD SUCCESSFUL (2 changed sources recompiled)
+- `grep -c "^('" db/update_087.sql` = 7 (unchanged)
+- Live boot test via `docker compose` (fresh MariaDB 12.0.2 initialized from `db/`): `List of enchant proc tiers: 7 Loaded (0 skipped)`, no self-check errors, `Database tables loaded successfully!`
+- Idempotency: re-applied `db/update_087.sql` to the initialized DB — still exactly 7 rows (`ON DUPLICATE KEY UPDATE` verified on MariaDB 12.0.2)
+- New validation paths: inserted `probability=150`, `min_damage=9/max_damage=3`, and `damage_type='Physical'` rows, rebooted — first two skipped with warnings naming the tier, `'Physical'` loaded via case-insensitive normalization (`8 Loaded (2 skipped)`), boot completed
+
+### Review Findings
+
+_Code review 2026-08-29 (layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; inline passes — same model/session, not independent LLMs). 21 unique findings after dedup; 3 dismissed as noise._
+
+#### Decision-needed
+
+- [x] [Review][Decision] Negative-damage AC is vacuous — RESOLVED 2026-08-29: keep `unsigned` (house style); check stays as documented defense-in-depth — `min_damage`/`max_damage` are `unsigned` in `db/update_087.sql`, so the loader's negative-damage check (`EnchantProcTable.java:96`) can never fire and the MALFORMED_ROW "negative damage" acceptance case cannot occur or be tested via the DB. Decide: keep unsigned (house style) and document the vacuous AC, or make the damage columns signed so the check is live.
+- [x] [Review][Decision] `probability = 0` semantics — RESOLVED 2026-08-29: 0 is a legitimate "disable this tier" tuning knob; stays loadable, loader emits an info line — a 0% tier loads as valid and silently covers its enchant range with a proc that can never fire (`EnchantProcTable.java:91-107`). Decide: is 0 a legitimate "disable this tier" tuning knob (keep, maybe log), or a malformed row to skip with a warning?
+- [x] [Review][Decision] `update_087.sql` re-apply/failure policy — RESOLVED 2026-08-29: idempotent guard — keep `IF NOT EXISTS`, pin `tier_id` 1–7, add `ON DUPLICATE KEY UPDATE` — the `INSERT` is unguarded while `CREATE` uses `IF NOT EXISTS` (a house-style deviation; no other `update_*.sql` uses it): re-applying the file duplicates all 7 seed rows (boot then logs `14 Loaded`), and a pre-existing differently-shaped table or mid-file failure leaves partial state with no documented rollback. Decide: house-style apply-once (drop `IF NOT EXISTS`, document apply-once) or idempotent guard (explicit `tier_id` + `ON DUPLICATE KEY UPDATE` / `WHERE NOT EXISTS`).
+- [x] [Review][Decision] `getTier` contract verification — RESOLVED 2026-08-29: add boot-time self-check with `ERROR` log on violation (content-relative probes so it survives content tuning) — the lookup (the entire point of this story) has zero callers and zero tests; an inverted comparison or dropped `ORDER BY` would ship inert and detonate in Story 1.2. Decide: add a boot-time self-check (assert `getTier(3)`→tier 1, `getTier(12)`→tier 7, `getTier(0)`→null; log `ERROR` on violation — a new pattern for this codebase) or accept the review + manual-boot gate (the repo's current verification convention).
+
+#### Patch
+
+- [x] [Review][Patch] Skip rows with `min_damage > max_damage` (currently loads; inverted range would reach Story 1.2's damage roll) [src/l1j/server/server/datatables/EnchantProcTable.java:91-107]
+- [x] [Review][Patch] Skip rows with `probability > 100` (column is unsigned/unbounded; 500 loads as a valid tier) [src/l1j/server/server/datatables/EnchantProcTable.java:91-107]
+- [x] [Review][Patch] Normalize `damage_type` before the known-set check (trim + case-insensitive; `'Physical'` is currently skipped as unknown) [src/l1j/server/server/datatables/EnchantProcTable.java:101]
+- [x] [Review][Patch] Fix misleading error message `"error while creating enchant_proc table"` — this code loads, never creates [src/l1j/server/server/datatables/EnchantProcTable.java:73]
+- [x] [Review][Patch] Pin `tier_id` 1–7 explicitly in the seed INSERT (AUTO_INCREMENT + omitted ID lets tier identity drift on any non-empty pre-existing table) [db/update_087.sql:16-23]
+- [x] [Review][Patch] Enforce `tier_id` ordering in code (sort loaded list) so the documented first-match tie-break doesn't depend solely on the `ORDER BY` clause in the SQL string [src/l1j/server/server/datatables/EnchantProcTable.java:109]
+- [x] [Review][Patch] Make `_instance` volatile (unsynchronized publication; a concurrent early `getTier` could observe a partially populated list) [src/l1j/server/server/datatables/EnchantProcTable.java:46]
+- [x] [Review][Patch] Log skipped-row count in the summary line and warn when 0 tiers load, so `7 Loaded` vs `0 Loaded` vs failed-load are distinguishable at a glance [src/l1j/server/server/datatables/EnchantProcTable.java:109]
+- [x] [Review][Patch] Catch `Exception` (not only `SQLException`) around the load so a non-SQL failure can't abort boot [src/l1j/server/server/datatables/EnchantProcTable.java:72]
+- [x] [Review][Patch] Guard `enchantLevel < 0` in `getTier` (corrupted item data could match a future negative-min tier) [src/l1j/server/server/datatables/EnchantProcTable.java:117]
+- [x] [Review][Patch] Document the `probability` unit (percent) in javadoc — the 25 = 25% convention exists only in the SQL header comment [src/l1j/server/server/model/L1EnchantProcTier.java]
+
+#### Deferred
+
+- [x] [Review][Defer] No automated verification of the boot-load path — repo has no test infrastructure; verification is a one-off manual docker boot, not re-run in any normal path; a missing/broken `enchant_proc` table leaves the feature silently off [src/l1j/server/server/GameServerThread.java:299] — deferred, pre-existing
+- [x] [Review][Defer] `effect_id = 0` doubles as placeholder and potentially-real effect ID with no marker — Story 1.3 selects real IDs via `update_088.sql` by design [db/update_087.sql:16-23] — deferred, pre-existing
+- [x] [Review][Defer] Singleton is published even when the load fails (no retry; empty table indistinguishable from no-match at API level) — codebase-wide table pattern shared by `WeaponSkillTable` and all siblings [src/l1j/server/server/datatables/EnchantProcTable.java:51-57] — deferred, pre-existing

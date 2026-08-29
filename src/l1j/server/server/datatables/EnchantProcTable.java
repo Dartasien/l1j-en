@@ -24,6 +24,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -43,7 +44,7 @@ import l1j.server.server.utils.SQLUtil;
 public class EnchantProcTable {
 	private static Logger _log = LoggerFactory.getLogger(EnchantProcTable.class
 			.getName());
-	private static EnchantProcTable _instance;
+	private static volatile EnchantProcTable _instance;
 	private final List<L1EnchantProcTier> _tiers = new ArrayList<L1EnchantProcTier>();
 	private static final Set<String> KNOWN_DAMAGE_TYPES = Collections
 			.unmodifiableSet(new HashSet<String>(java.util.Arrays
@@ -69,8 +70,8 @@ public class EnchantProcTable {
 			pstm = con.prepareStatement("SELECT * FROM enchant_proc ORDER BY tier_id");
 			rs = pstm.executeQuery();
 			fillEnchantProcTable(rs);
-		} catch (SQLException e) {
-			_log.error("error while creating enchant_proc table", e);
+		} catch (Exception e) {
+			_log.error("error while loading enchant_proc table", e);
 		} finally {
 			SQLUtil.close(rs);
 			SQLUtil.close(pstm);
@@ -79,6 +80,7 @@ public class EnchantProcTable {
 	}
 
 	private void fillEnchantProcTable(ResultSet rs) throws SQLException {
+		int skipped = 0;
 		while (rs.next()) {
 			int tierId = rs.getInt("tier_id");
 			int minEnchant = rs.getInt("min_enchant");
@@ -91,22 +93,87 @@ public class EnchantProcTable {
 			if (minEnchant > maxEnchant) {
 				_log.warn("skipping enchant_proc tier " + tierId + ": min_enchant ("
 						+ minEnchant + ") > max_enchant (" + maxEnchant + ")");
+				skipped++;
 				continue;
 			}
+			// Defense in depth only: the damage columns are unsigned, so the
+			// database cannot store negative values.
 			if (minDamage < 0 || maxDamage < 0) {
 				_log.warn("skipping enchant_proc tier " + tierId + ": negative damage ("
 						+ minDamage + "-" + maxDamage + ")");
+				skipped++;
 				continue;
 			}
-			if (damageType == null || !KNOWN_DAMAGE_TYPES.contains(damageType)) {
+			if (minDamage > maxDamage) {
+				_log.warn("skipping enchant_proc tier " + tierId + ": min_damage ("
+						+ minDamage + ") > max_damage (" + maxDamage + ")");
+				skipped++;
+				continue;
+			}
+			if (probability > 100) {
+				_log.warn("skipping enchant_proc tier " + tierId + ": probability ("
+						+ probability + ") > 100");
+				skipped++;
+				continue;
+			}
+			String normalizedType = null;
+			if (damageType != null) {
+				damageType = damageType.trim();
+				for (String known : KNOWN_DAMAGE_TYPES) {
+					if (known.equalsIgnoreCase(damageType)) {
+						normalizedType = known;
+						break;
+					}
+				}
+			}
+			if (normalizedType == null) {
 				_log.warn("skipping enchant_proc tier " + tierId + ": unknown damage type '"
 						+ damageType + "'");
+				skipped++;
 				continue;
 			}
+			if (probability == 0) {
+				_log.info("enchant_proc tier " + tierId
+						+ " has probability 0 (disabled tier)");
+			}
 			_tiers.add(new L1EnchantProcTier(tierId, minEnchant, maxEnchant,
-					probability, damageType, minDamage, maxDamage, effectId));
+					probability, normalizedType, minDamage, maxDamage, effectId));
 		}
-		_log.info("List of enchant proc tiers: " + _tiers.size() + " Loaded");
+		Collections.sort(_tiers, new Comparator<L1EnchantProcTier>() {
+			public int compare(L1EnchantProcTier a, L1EnchantProcTier b) {
+				return a.getTierId() - b.getTierId();
+			}
+		});
+		if (_tiers.isEmpty()) {
+			_log.warn("enchant_proc table is empty (" + skipped
+					+ " rows skipped) - no enchant proc tiers active");
+		} else {
+			_log.info("List of enchant proc tiers: " + _tiers.size() + " Loaded ("
+					+ skipped + " skipped)");
+		}
+		selfCheck();
+	}
+
+	/**
+	 * Boot-time self-check of the lookup contract: tiers must be ordered by
+	 * tier_id and every tier's own min_enchant must resolve to a tier. The
+	 * probes are content-relative so the check survives content tuning.
+	 */
+	private void selfCheck() {
+		for (int i = 1; i < _tiers.size(); i++) {
+			if (_tiers.get(i - 1).getTierId() >= _tiers.get(i).getTierId()) {
+				_log.error("enchant_proc self-check failed: tiers not in tier_id order");
+				return;
+			}
+		}
+		for (L1EnchantProcTier tier : _tiers) {
+			if (getTier(tier.getMinEnchant()) == null) {
+				_log.error("enchant_proc self-check failed: getTier("
+						+ tier.getMinEnchant() + ") returned null for tier "
+						+ tier.getTierId());
+				return;
+			}
+		}
 	}
 
 	/**
@@ -115,6 +182,9 @@ public class EnchantProcTable {
 	 * the first match in tier_id order wins.
 	 */
 	public L1EnchantProcTier getTier(int enchantLevel) {
+		if (enchantLevel < 0) {
+			return null;
+		}
 		for (L1EnchantProcTier tier : _tiers) {
 			if (enchantLevel >= tier.getMinEnchant()
 					&& enchantLevel <= tier.getMaxEnchant()) {

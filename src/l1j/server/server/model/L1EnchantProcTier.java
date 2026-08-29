@@ -58,6 +58,10 @@ public class L1EnchantProcTier {
 		return _maxEnchant;
 	}
 
+	/**
+	 * Trigger probability in percent (0-100). 0 is a valid "disabled tier":
+	 * the tier loads but can never proc.
+	 */
 	public int getProbability() {
 		return _probability;
 	}

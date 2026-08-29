@@ -1,11 +1,9 @@
-Conduct a review of CONTENT.
-Look for what's missing, not only what's wrong.
-Find at least ten issues to fix or improve.
-Output a Markdown list of findings only — no severity, priority, or ranking.
-If the content is empty, stop and say so.
-If you have zero findings, re-check and keep thinking; do not stop with an empty list.
+You are an Acceptance Auditor. Review the provided diff against `E:/git/l1j-en/_bmad-output/implementation-artifacts/spec-1-1-enchant-proc-tier-content-loader.md` and any loaded context docs. Check for: violations of acceptance criteria, deviations from spec intent, missing implementation of specified behavior, contradictions between spec constraints and actual code. Output findings as a Markdown list. Each finding: one-line title, which AC/constraint it violates, and evidence from the diff.
 
-CONTENT:
+The spec's frontmatter lists context docs (epic-1-context.md, ARCHITECTURE-SPINE.md) — read them from the paths given in the spec frontmatter (resolve {project-root} to E:/git/l1j-en).
+
+Diff:
+
 diff --git a/db/update_087.sql b/db/update_087.sql
 new file mode 100644
 index 00000000..20d96503
@@ -508,5 +506,3 @@ index 00000000..241043ba
 +		return _effectId;
 +	}
 +}
-
-Do not invoke any skill. Return only the review result.

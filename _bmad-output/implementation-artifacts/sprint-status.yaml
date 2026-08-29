@@ -29,14 +29,14 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-28-2026 19:18
-last_updated: 08-28-2026 19:42
+last_updated: 08-29-2026 02:35
 project: l1j-en
 project_key: NOKEY
 tracking_system: file-system
 story_location: E:/git/l1j-en/_bmad-output/implementation-artifacts
 development_status:
   epic-1: in-progress
-  1-1-enchant-proc-tier-content-loader: in-progress
+  1-1-enchant-proc-tier-content-loader: done
   1-2-enchant-tier-proc-triggers-physical-damage-on-attack: backlog
   1-3-spell-effect-signifies-the-proc: backlog
   epic-1-retrospective: optional
