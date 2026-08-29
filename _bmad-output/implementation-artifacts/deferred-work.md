@@ -19,3 +19,12 @@
 - Recorded verification evidence is one-shot and non-reproducible — the scratch harness was not committed and its dir removed; docker environments torn down. The spec's ALL PASS claims (incl. `rollDamage` endpoint coverage) cannot be re-established in any normal path; a `nextLong(span + 1)` → `nextLong(span)` regression would fail no re-runnable check.
 - Table load failure indistinguishable from no-tier at the call site — `getInstance()` returns an empty singleton on failed load; the feature is silently off while the boot banner reports `EnchantProcs = On`. Pre-existing codebase-wide table pattern (already deferred under Story 1.1); re-surfaced by the second pass because Story 1.2 added a live consumer of the table.
 - No magnitude sanity bound on `enchant_proc` damage content — `max_damage` up to 2147483647 passes loader shape validation and would add ~2.1B to `damage` pre-mitigation on a proc. Deferred by decision (2026-08-29): GM content authority accepted — stop-the-world, GM-reviewed SQL per AD-2; a 2.1B-damage row requires deliberate bad content. Revisit if a magnitude cap is ever wanted (would be a loader validation change, i.e. Story 1.1 territory).
+
+## Deferred from: code review of spec-1-3-spell-effect-signifies-the-proc.md (2026-08-29)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-3-spell-effect-signifies-the-proc.md`
+  summary: The proc effect dispatch path (packet choice, broadcast, missing-effect guard) and the `update_088.sql` seed rows have no re-runnable automated verification — ACs are manual-client-only and the spec's grep check was inert.
+  evidence: No test infrastructure in the repo (no test dirs, no JUnit under `src/` — pre-existing, see Story 1.1/1.2 deferrals); inverting the `_isArrowType`/melee branch or dropping the `effect_id > 0` guard would fail no re-runnable check.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-3-spell-effect-signifies-the-proc.md`
+  summary: No guard against `effect_id` > 32767 — `S_SkillSound` writes the gfx id with `writeH` (16-bit) while `enchant_proc.effect_id` is an unbounded int, so a future content value would silently truncate and corrupt the packet.
+  evidence: `src/l1j/server/server/serverpackets/S_SkillSound.java` `buildPacket` uses `writeH(gfxid)`; `db/update_087.sql` declares `effect_id int(11) unsigned`; all seven current seed IDs (10, 1811, 1810, 2165, 3924, 1819, 762) fit, so this is a future-content hardening gap, not a current defect.

@@ -842,8 +842,11 @@ public class L1Attack {
 					&& enchantProcTier.getProbability() >= ThreadLocalRandom
 							.current().nextInt(100) + 1) {
 				damage += enchantProcTier.rollDamage();
+				// Visual signification of the proc (Story 1.3): purely cosmetic,
+				// mirrors the L1WeaponSkill dispatch pattern. isRanged covers
+				// Bow + Sting (projectile weapons); melee bursts on the target.
 				if (enchantProcTier.getEffectId() > 0) {
-					if (_isArrowType) {
+					if (isRanged) {
 						_pc.sendAndBroadcast(new S_UseAttackSkill(_pc, _targetId, enchantProcTier.getEffectId(), _targetX, _targetY, ActionCodes.ACTION_Attack, false));
 					} else {
 						_pc.sendAndBroadcast(new S_SkillSound(_targetId, enchantProcTier.getEffectId()));
