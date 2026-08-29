@@ -1,4 +1,4 @@
----
+ ---
 title: 'Story 1.2: Enchant-Tier Proc Triggers Physical Damage on Attack'
 type: 'feature'
 created: '2026-08-29'
