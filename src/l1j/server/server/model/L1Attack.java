@@ -842,6 +842,13 @@ public class L1Attack {
 					&& enchantProcTier.getProbability() >= ThreadLocalRandom
 							.current().nextInt(100) + 1) {
 				damage += enchantProcTier.rollDamage();
+				if (enchantProcTier.getEffectId() > 0) {
+					if (_isArrowType) {
+						_pc.sendAndBroadcast(new S_UseAttackSkill(_pc, _targetId, enchantProcTier.getEffectId(), _targetX, _targetY, ActionCodes.ACTION_Attack, false));
+					} else {
+						_pc.sendAndBroadcast(new S_SkillSound(_targetId, enchantProcTier.getEffectId()));
+					}
+				}
 			}
 		}
 
