@@ -51,7 +51,7 @@ context:
 | KIRINGKU | flag on, kiringku weapon, tier matched, roll succeeds | Kiringku damage computed first, proc damage added on top | N/A |
 | STACK_WEAPON_SKILL | flag on, both enchant proc and `weapon_skill` proc trigger | Both damages apply (additive) | N/A |
 | RANGED | flag on, bow/gauntlet with enchanted weapon, roll succeeds | Proc applies (all weapon types) | N/A |
-| FIST | flag on, fist weapon | Fist damage replacement runs; fist weapons carry enchant 0 → `getTier(0)` null → no proc | N/A |
+| FIST | flag on, fist weapon | Fist damage replacement runs first; an unenchanted fist (enchant 0) matches no tier → no proc. An *enchanted* fist (or dice-dagger) weapon DOES proc, adding tier damage on top of the replaced 1–2 fist damage — per AC1 "all weapon types" and the Design Notes (confirmed 2026-08-29, second-pass review) | N/A |
 | DISABLED_TIER | flag on, tier with `probability = 0` (Story 1.1 decision: valid disable knob) | Tier matches but gate never passes → no proc | N/A |
 | MIN_EQ_MAX | tier with `min_damage == max_damage` | `rollDamage` returns that exact value (no `nextInt(0)` exception) | N/A |
 | FUTURE_NON_PHYSICAL | tier with a non-physical damage type (impossible today — loader accepts only `physical`) | Guard skips the proc rather than misapplying it as physical | N/A |
@@ -163,6 +163,31 @@ _Code review 2026-08-29 (layers: blind-hunter, edge-case-hunter, verification-ga
 - Live boot, flag ON (patched image, fresh stack `l1jverify4`, fresh MariaDB 12.0.2): `EnchantProcs = On`, `List of enchant proc tiers: 7 Loaded (0 skipped)`, `Database tables loaded successfully!`, `Starting networking`; no ERROR/Exception lines
 - Live boot, flag OFF (property flipped to `False`, server restart): `EnchantProcs = Off` — proves the `UseEnchantProcs` key is actually read from `altsettings.properties` (the pre-patch flag-off boot had no observable signal); table still loads, boot clean; config reverted to `True`
 - Environment torn down (containers, `l1jverify4_my-db` volume, `.env`, harness dir removed)
+
+### Review Findings — second pass
+
+_Code review 2026-08-29, second pass over the post-patch diff `41df7f23..45f16456` (layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; inline passes — same model/session, not independent LLMs). 18 normalized findings; 11 dismissed as noise/already-adjudicated; 2 decision-needed, 1 patch, 4 deferred._
+
+#### Decision-needed
+
+- [x] [Review][Decision] No magnitude sanity bound on `enchant_proc` damage content — `max_damage = 2147483647` passes all four loader checks (shape-only validation: min>max, negative, probability>100, unknown type) and would add up to ~2.1B to `damage` pre-mitigation on a proc. Loader validation scope was fixed in the Story 1.1 review, and this spec's "Never" forbids `EnchantProcTable` load/validation changes in this story — a magnitude cap requires spec renegotiation. — RESOLVED 2026-08-29: accept GM content authority (defer) — stop-the-world, GM-reviewed SQL per AD-2; a 2.1B-damage row requires deliberate bad content. No loader change.
+- [x] [Review][Decision] FIST matrix row contradicts AC1 for enchanted fist weapons — the frozen I/O matrix FIST row expects "no proc" on the premise "fist weapons carry enchant 0", but `L1CreateItem` (GM) can create fist or dice-dagger weapons with enchant ≥ 1, and the code + Design Notes intend the proc to apply on top of fist-replaced / dice-dagger-replaced damage (AC1: "all weapon types"). The code follows AC1; the matrix row's rationale is the inaccurate part. — RESOLVED 2026-08-29: intent confirmed — enchanted fist/dice-dagger weapons DO proc (code stands); correct the frozen matrix row's rationale (human-approved frozen-section edit).
+
+#### Patch
+
+- [x] [Review][Patch] `UseEnchantProcs` properties comment doesn't point at where tier values are tuned — extend the comment to note that per-tier probability/damage values live in the `enchant_proc` DB table (content tunable without code) [config/altsettings.properties:194] — applied 2026-08-29
+- [x] [Review][Patch] Correct the FIST matrix row rationale — replace "fist weapons carry enchant 0 → `getTier(0)` null → no proc" with the actual contract: an unenchanted fist weapon procs no tier; an *enchanted* fist (or dice-dagger) weapon DOES proc on top of the replaced damage per AC1 "all weapon types" and the Design Notes [spec I/O matrix FIST row] — applied 2026-08-29 (human-approved frozen-section edit)
+
+#### Deferred
+
+- [x] [Review][Defer] No re-runnable verification of the production proc gate line — the gate/additivity at `L1Attack.java:837-846` is exercised by no test in any normal path; the scratch harness verified a re-implementation of the gate expression (since deleted). Flipping `>=` to `<` (proc fires 75% instead of 25%) passes compile and boot. Root cause: no test infrastructure (pre-existing; complements the Story 1.1 boot-load deferral and the first-pass attack-path deferral) [src/l1j/server/server/model/L1Attack.java:837-846] — deferred, pre-existing
+- [x] [Review][Defer] Kiringku placement contract pinned only by a comment — moving the proc block above the kiringku replacement would silently remove kiringku coverage (AC + KIRINGKU matrix row violation); no re-runnable check observes ordering. The explanatory comment (first-pass patch) is the only guard [src/l1j/server/server/model/L1Attack.java:834-846] — deferred, pre-existing
+- [x] [Review][Defer] Recorded verification evidence is one-shot and non-reproducible — the scratch harness was not committed and its dir removed; docker environments torn down. The spec's ALL PASS claims (incl. `rollDamage` endpoint coverage) cannot be re-established in any normal path; a `nextLong(span + 1)` → `nextLong(span)` regression would fail no re-runnable check [spec Verification results sections] — deferred, pre-existing
+- [x] [Review][Defer] Table load failure indistinguishable from no-tier at the call site — `getInstance()` returns an empty singleton on failed load; the feature is silently off while the boot banner reports `EnchantProcs = On` (banner at `GameServerThread.java:174` also prints before the table loads at `:305`, though both signals land in the same boot log). Pre-existing codebase-wide table pattern [src/l1j/server/server/model/L1Attack.java:838] — deferred, pre-existing (tracked in Story 1.1)
+
+#### Dismissed (11)
+
+Non-physical silent skip at call site (loader already rejects non-physical with a warning; guard is spec-sanctioned defense-in-depth) · no observability when a proc fires (first-pass rejection: Story 1.3 `S_SkillSound` is the visibility mechanism) · boot banner ordering vs table load (both signals auditable in one boot log; first-pass rejection stands) · code-default-False vs shipped-True / missing key silent (house pattern; deployed state observable via boot banner) · no `tryProc` single entry point (first-pass Design Note: single call site, helper adds indirection) · probability-0 tier still pays a random roll (negligible hot-path cost; mirrors weapon-skill idiom) · stale `review-prompt-*-1-2.md` artifacts embed pre-patch diff (historical record of the first loop, accurate at time of run) · 1.2-only deployment ships un-signified damage (epic sequencing by design; Story 1.3 is next) · frozen task text prescribes pre-patch `rollDamage` formula (divergence documented in first-pass Review Findings; frozen section must not be edited) · unsigned DB wrap to negative `rs.getInt` values (loader's negative + min>max checks catch every wrap combination — verified in code) · dice-dagger stacking (Design Notes explicitly cover dice-dagger-replaced damage).
 
 ## Suggested Review Order
 
