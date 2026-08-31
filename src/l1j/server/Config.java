@@ -622,8 +622,7 @@ public final class Config {
 					"GameserverHostname", "*");
 			GAME_SERVER_PORT = Integer.parseInt(serverSettings.getProperty(
 					"GameserverPort", "2000"));
-			DB_DRIVER = serverSettings.getProperty("Driver",
-					"com.mysql.jdbc.Driver");
+			DB_DRIVER = "com.mysql.cj.jdbc.Driver"; // Forced to CJ driver for MySQL 9 compatibility
 			DB_URL = System.getenv().getOrDefault("DB_URL", 
 					serverSettings.getProperty("URL", 
 					"jdbc:mysql://localhost:3306/l1jdb?useUnicode=True&characterEncoding=UTF-8"));
@@ -1253,7 +1252,7 @@ public final class Config {
 		} else if (pName.equalsIgnoreCase("GameserverPort")) {
 			GAME_SERVER_PORT = Integer.parseInt(pValue);
 		} else if (pName.equalsIgnoreCase("Driver")) {
-			DB_DRIVER = pValue;
+			DB_DRIVER = "com.mysql.cj.jdbc.Driver";
 		} else if (pName.equalsIgnoreCase("URL")) {
 			DB_URL = pValue;
 		} else if (pName.equalsIgnoreCase("Login")) {

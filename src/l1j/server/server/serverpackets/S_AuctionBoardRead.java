@@ -68,7 +68,7 @@ public class S_AuctionBoardRead extends ServerBasePacket {
 				writeS(rs.getString(7));
 				writeS(rs.getString(9));
 				writeS(String.valueOf(rs.getInt(5)));
-				Calendar cal = timestampToCalendar((Timestamp) rs.getObject(4));
+				Calendar cal = timestampToCalendar(rs.getTimestamp(4));
 				int month = cal.get(Calendar.MONTH) + 1;
 				int day = cal.get(Calendar.DATE);
 				int hour = cal.get(Calendar.HOUR_OF_DAY);
